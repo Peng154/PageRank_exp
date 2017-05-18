@@ -130,36 +130,19 @@ class PageRank(object):
             words_list.append(" ".join(seg_list))
             paragraph_list.append(sentence.paragraph)
 
-        # 开始转换
+        # 开始转换为tf_idf矩阵
         # vectorizer = CountVectorizer()
         # transformer = TfidfTransformer()
-        # tfidf = transformer.fit_transform(vectorizer.fit_transform(words))
+        # tf_idf_matrix = transformer.fit_transform(vectorizer.fit_transform(words_list))
         #
         # words = vectorizer.get_feature_names()
-        # weights = tfidf.toarray()
-
+        # tf_idf_matrix = tf_idf_matrix.toarray()
+        #
         # print(len(words))
-        # print(weights.shape)
-        # for i in weights[0]:
+        # print(tf_idf_matrix.shape)
+        # for i in tf_idf_matrix[0]:
         #     if i!= 0:
         #         print(i)
-        #
-        # print('开始PCA降维。。。。')
-        # start = time.time()
-        # pca = PCA(n_components= 2000)
-        # weights = pca.fit_transform(weights)
-        # print(sum(pca.explained_variance_ratio_))
-        # end = time.time()
-        # print('结束，耗时{}s'.format(end-start))
-        #
-        # print(weights.shape)
-        # # for i in weights[0]:
-        # #     if i != 0:
-        # #         print(i)
-        #
-        # file = open('../data/vectors.pkl', 'wb')
-        # pickle.dump(weights, file)
-        # file.close()
 
         ##########################################
         #test，自己写的tf_idf
