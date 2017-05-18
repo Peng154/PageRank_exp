@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfTransformer,CountVectorizer
 from sklearn.decomposition.pca import PCA
+from src.Tf_idfTransformer import Tf_idfTransformer
 
 Sentence = namedtuple('Sentence',['str', 'paragraph'])
 
@@ -118,34 +119,71 @@ class PageRank(object):
         if sentences is None:
             sentences = self.loadSentences()
 
-        words = []
+        # 句子段落编号
+        paragraph_list = []
+
+        words_list = []
         for sentence in sentences:
             seg_list = jieba.lcut(sentence.str, cut_all=False)
             # 去停用词
             seg_list = [word for word in seg_list if word not in self.stopWords]
-            words.append(' '.join(seg_list))
-
-        print(words[0])
-        print(len(words))
+            words_list.append(" ".join(seg_list))
+            paragraph_list.append(sentence.paragraph)
 
         # 开始转换
-        vectorizer = CountVectorizer()
-        transformer = TfidfTransformer()
-        tfidf = transformer.fit_transform(vectorizer.fit_transform(words))
+        # vectorizer = CountVectorizer()
+        # transformer = TfidfTransformer()
+        # tfidf = transformer.fit_transform(vectorizer.fit_transform(words))
+        #
+        # words = vectorizer.get_feature_names()
+        # weights = tfidf.toarray()
 
-        words = vectorizer.get_feature_names()
-        weights = tfidf.toarray()
+        # print(len(words))
+        # print(weights.shape)
+        # for i in weights[0]:
+        #     if i!= 0:
+        #         print(i)
+        #
+        # print('开始PCA降维。。。。')
+        # start = time.time()
+        # pca = PCA(n_components= 2000)
+        # weights = pca.fit_transform(weights)
+        # print(sum(pca.explained_variance_ratio_))
+        # end = time.time()
+        # print('结束，耗时{}s'.format(end-start))
+        #
+        # print(weights.shape)
+        # # for i in weights[0]:
+        # #     if i != 0:
+        # #         print(i)
+        #
+        # file = open('../data/vectors.pkl', 'wb')
+        # pickle.dump(weights, file)
+        # file.close()
 
-        print(len(words))
-        print(weights.shape)
-        for i in weights[0]:
-            if i!= 0:
-                print(i)
+        ##########################################
+        #test，自己写的tf_idf
+        transformer = Tf_idfTransformer()
+        # 统计词频
+        tf_matrix, words = transformer.wordsToMatrix(words_list)
+        print("得到词频，开始计算tf—idf...")
+        start = time.time()
+        tf_idf_matrix = transformer.cal_tf_idf(tf_matrix, words, words_list)
+        end = time.time()
+        print("耗时：{}s".format(end-start))
+
+        print(tf_idf_matrix.shape)
+
+        print(words_list[0])
+
+        for i in range(len(tf_idf_matrix[0])):
+            if tf_idf_matrix[0][i] != 0:
+                print(words[i],tf_idf_matrix[0][i], sep=' ')
 
         print('开始PCA降维。。。。')
         start = time.time()
         pca = PCA(n_components= 2000)
-        weights = pca.fit_transform(weights)
+        weights = pca.fit_transform(tf_idf_matrix)
         print(sum(pca.explained_variance_ratio_))
         end = time.time()
         print('结束，耗时{}s'.format(end-start))
@@ -156,7 +194,7 @@ class PageRank(object):
         #         print(i)
 
         file = open('../data/vectors.pkl', 'wb')
-        pickle.dump(weights, file)
+        pickle.dump((weights,paragraph_list), file)
         file.close()
 
 
@@ -197,22 +235,18 @@ class PageRank(object):
         else:
             raise RuntimeError("无法加载句子文件{}，可能还未将网页处理成句子格式！！！".format(self.sentences_path))
 
-    def analyze_sentences(self):
+    def analyze_sentences(self, sentences=None):
         '''分析句子长度、分完词之后词的数目'''
         # 加载句子
-        if not hasattr(self, 'sentences'):
-            if not os.path.exists(self.SENTENCE_FILE_PATH):
-                raise ValueError('还未将原始页面转换成句子！！')
-            else:
-                self.loadSentence()
-
+        if sentences is None:
+            sentences = self.loadSentences()
 
         # 句子长度
         lengths = []
         # 每个句子词的数量
         word_nums = []
 
-        for sentence in self.sentences:
+        for sentence in sentences:
             str = sentence.str
             # 统计句子长度
             lengths.append(len(sentence.str))
@@ -250,7 +284,7 @@ if __name__ == "__main__":
 
 
     pr = PageRank(dataPath=dataPath, sentences_path=sentences_path, stopWords_path=stopWords_path)
-    sentences = pr.pageToSentences()
-    pr.sentencesToVector(sentences=sentences)
+    # sentences = pr.pageToSentences()
+    pr.sentencesToVector()
     # pr.cutWords()
     # pr.analyze_sentences()
