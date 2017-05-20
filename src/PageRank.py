@@ -1,4 +1,4 @@
-import jieba, math
+import jieba, math, pandas as pd
 import pickle, re, time, os
 from collections import namedtuple
 import numpy as np
@@ -40,7 +40,7 @@ class PageRank(object):
         :return:
         """
         if useCache:
-            file = open(self.sentences_path)
+            file = open(self.sentences_path, 'rb')
             sentences = pickle.load(file)
             file.close()
             return sentences
@@ -275,12 +275,12 @@ class PageRank(object):
         fig.subplots_adjust(hspace=0.4)
         plt.show()
 
-    def getNearness(self, vec1, vec2):
+    def getNearness(self, vec1, vec2, epsilon=1e-1):
         """
         通过余弦夹角运算得到两个向量的相似度
         :param vec1:
         :param vec2:
-        :return: 相似度，越大表示越相近
+        :return: 相似度=（2*pi/(角度))，为什么要用角度的倒数，因为角度越大代表相似度越低
         """
         assert len(vec1.shape) == 1 and len(vec1.shape) == 1
         assert vec1.shape[0] == vec2.shape[0]
@@ -289,31 +289,100 @@ class PageRank(object):
         norm1 = np.sqrt(np.sum(np.square(vec1)))
         norm2 = np.sqrt(np.sum(np.square(vec2)))
 
-        result = np.arccos(dot_mul/(norm1*norm2))
+        result = dot_mul/(norm1*norm2)
 
+        # 神他妈，为什么会出现这样的情况。。。。
+        if result>1:
+            print(result)
+            result = 1
+        elif result<-1:
+            print(result)
+            result = -1
+
+        result = np.arccos(result)
+
+        if result == 0:
+            result = epsilon
         return (2*np.pi)/result
 
 
-    def page_rank(self, weights, paragraph_list, sentences, num=10, epsilon=0.0001, max_step=1e4, d=0.85):
-        sen_nums = weights.shape[0]
+    def page_rank(self, tfidf_weights, paragraph_list, num=10, epsilon=1e-5, max_step=1e2, d=0.85):
+        """
+        对所有的句子进行page_rank排序，返回PR值为前 num 个句子的索引值
+        :param tfidf_weights: 所有句子的tf-idf特征向量
+        :param paragraph_list: 每个句子所属的段落
+        :param num: 前几个句子
+        :param epsilon: PR值迭代的收敛误差
+        :param max_step: PR算法迭代的最大步数
+        :param d: PR参数
+        :return: 一个存有PR值前num个句子的索引的list
+        """
+        sen_nums = tfidf_weights.shape[0]
 
         # page_rank的初始值
         p = np.ones((sen_nums, ), dtype=np.float32)
         p /= sen_nums
-        temp = np.zeros((sen_nums, ), dtype=np.float32)
+        temp_p = np.zeros((sen_nums, ), dtype=np.float32)
 
         # 构建图
         graph = np.zeros((sen_nums, sen_nums), dtype=np.float32)
 
         # 计算邻接图的权重
+        """
+        构造图，顶点是句子，边与边之间的权重wij为句子Vi与Vi之间的tf*idf，
+        PR(Vi)为顶点Vi的PR值，In表示入边集合，Out为出边集合，顶点Vi指向
+        Vj当且就当句子Vi在同一段Vj，且Vj在出现在Vi的后面
+        """
         for i in range(sen_nums):
             for j in range(sen_nums):
                 if j < i and paragraph_list[j] == paragraph_list[i]:
-                    graph[i][j] = self.getNearness(weights[i], weights[j])
+                    graph[i][j] = self.getNearness(tfidf_weights[i], tfidf_weights[j])
 
-        for i in range(max_step):
-            pass
-        pass
+        step = 0
+
+        # 开始迭代计算句子的page_rank的值
+        while True:
+            start = time.time()
+            step += 1
+            print("步数：{}".format(step))
+            for i in range(sen_nums):
+                temp = 0
+                for j in range(sen_nums):
+                    if graph[j][i] != 0:
+                        temp+=(graph[j][i] * p[j])/np.sum(graph[j])
+
+                temp_p[i] = (1-d) + d*temp
+
+            error = np.max(np.abs(p-temp_p))
+
+            end = time.time()
+            print("误差：{}， 用时：{}s".format(error, end - start))
+
+            if step < max_step:
+                if error > epsilon:
+                    p = temp_p.copy()
+                else:
+                    break
+            else:
+                break
+
+        # 如果不收敛，返回空
+        if step == max_step:
+            print("无法收敛啊，是不是有毒!!!")
+            return None
+        else:
+            # 排序，返回前面的索引
+            df = pd.DataFrame({'value':p,
+                               'idx': range(len(p))})
+            df = df.sort_values(by='value')
+
+            file = open('../data/result.pkl', 'wb')
+            pickle.dump(df, file)
+            file.close()
+
+            result_idx = df['idx'].head(num).get_values()
+            return result_idx
+
 
 
 if __name__ == "__main__":
@@ -325,5 +394,12 @@ if __name__ == "__main__":
     pr = PageRank(dataPath=dataPath, sentences_path=sentences_path, stopWords_path=stopWords_path)
     sentences = pr.pageToSentences(useCache=True)
     weights, paragraph_list = pr.sentencesToVector(sentences=sentences, useCache=True)
+    idxs = pr.page_rank(weights, paragraph_list, num=20)
+    # file = open('../data/result.pkl', 'rb')
+    # df = pickle.load(file)
+    # result_idx = df['idx'].head(10).get_values()
+    for idx in idxs:
+        print(sentences[idx].str)
+
     # pr.cutWords()
     # pr.analyze_sentences()
