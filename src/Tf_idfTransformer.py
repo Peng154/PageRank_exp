@@ -47,7 +47,7 @@ class Tf_idfTransformer(object):
             keys = words_dict.keys()
             # 计算词频
             for key in keys:
-                tf_matrix[i][words_idx[key]] = words_dict[key]/sum
+                tf_matrix[i][words_idx[key]] = words_dict[key]/float(sum)
 
         return tf_matrix, words
 
@@ -94,6 +94,6 @@ class Tf_idfTransformer(object):
         print(3)
         for i in range(sentences_num):
             for word in words:
-                tf_idf_matrix[i][words_idx[word]] *= math.log10(sentences_num/ word_stc_count[word])
+                tf_idf_matrix[i][words_idx[word]] *= math.log10(sentences_num/ float(word_stc_count[word]))
 
         return tf_idf_matrix

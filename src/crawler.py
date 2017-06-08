@@ -33,9 +33,7 @@ class Crawler(object):
     def getUrls(self):
         """
         从百度搜索获取所有相关的链接
-        :return:
         """
-
         # 存储从百度搜索的结果页面链接
         urls = []
         print('开始获取百度搜索结果的url。。。。')
@@ -153,11 +151,6 @@ class Crawler(object):
             print(str)
 
             datas[i] = str
-
-        # print(datas)
-        # for x in datas:
-        #     print(x)
-        #     print(len(x))
 
         # 写入文件中
         f = open(self.pages_content_path, 'wb')

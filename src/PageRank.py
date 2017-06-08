@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfTransformer,CountVectorizer
 from sklearn.decomposition.pca import PCA
 from src.Tf_idfTransformer import Tf_idfTransformer
+from sklearn import preprocessing
 
 Sentence = namedtuple('Sentence',['str', 'paragraph'])
 
@@ -39,47 +40,56 @@ class PageRank(object):
         同时会去掉空格以及所有的标点符号
         :return:
         """
+
+        # 判断是否使用缓存
         if useCache:
-            file = open(self.sentences_path, 'rb')
-            sentences = pickle.load(file)
-            file.close()
-            return sentences
-        else:
-            pattern1 = re.compile(r"。|？|！|!|\?")
-            pattern2 = re.compile(r"[\s+－：:\.\!\/_,$%^*()【】\[\]\"\']+|[+—！{}<>《》/\\，。？、~@#￥%…&*（）]+")
-            sentences = []
+            # 如果文件存在
+            if os.path.exists(self.sentences_path):
+                file = open(self.sentences_path, 'rb')
+                sentences = pickle.load(file)
+                file.close()
+                return sentences
 
-            for i in range(len(self.data)):
-                # 把最后的换行符去掉
-                page = self.data[i][:-1]
-                # 分成句子
-                print("{}、original data：{}".format(i, page))
-                strs = re.split(pattern1, page)
+        # 缓存文件不存在，乖乖算一次吧
+        pattern1 = re.compile(r"。|？|！|!|\?")
+        pattern2 = re.compile(r"[\s+－：:\.\!\/_,$%^*()【】\[\]\"\']+|[+—！{}<>《》/\\，。？\?、~@#￥%…&*（）]+")
+        sentences = []
 
-                for j in range(len(strs)):
-                    str = strs[j]
-                    # 去掉所有的标点符号
+        for i in range(len(self.data)):
+            # 把最后的换行符去掉
+            page = self.data[i][:-1]
+            # 分成句子
+            print("{}、original data：{}".format(i, page))
+            strs = re.split(pattern1, page)
 
-                    # print("{}、original sentence：{}".format(i, str))
-                    str = re.sub(pattern2, "", str)
-                    # 排除过短的句子
-                    if len(str) > 12:
-                        print("{}、processed sentence:{}".format(i, str))
-                        sentence = Sentence(str, i)
-                        sentences.append(sentence)
+            for j in range(len(strs)):
+                str = strs[j]
+                # 去掉所有的标点符号
 
-            # 经过分析，发现合并句子比较合适。。。。
-            sentences = self.merge_sentences(sentences)
+                # print("{}、original sentence：{}".format(i, str))
+                str = re.sub(pattern2, "", str)
+                # 排除过短的句子
+                if len(str) > 12:
+                    print("{}、processed sentence:{}".format(i, str))
+                    sentence = Sentence(str, i)
+                    sentences.append(sentence)
 
-            print("句子总数：{}".format(len(sentences)))
+        # 经过分析，发现合并句子比较合适。。。。
+        sentences = self.merge_sentences(sentences)
 
+        print("句子总数：{}".format(len(sentences)))
+
+        # 如果使用缓存，缓存一下
+        if(useCache):
             file = open(sentences_path, 'wb')
             pickle._dump(sentences, file)
             file.close()
 
-            del self.data
+        del self.data
 
-            return sentences
+        return sentences
+
+
 
     def merge_sentences(self, sentences=None):
         if sentences is None:
@@ -122,80 +132,87 @@ class PageRank(object):
         结束后将处理得到的tf-idf矩阵存储到 ../data/vector.pkl
         :return: 降维之后的tf_idf权重向量，每个句子的段落编号paragraph_list
         """
+
+        # 判断是否使用缓存
         if useCache:
+            # 缓存文件是否存在
             if os.path.exists(cachePath):
                 file = open(cachePath, 'rb')
                 weights, paragraph_list = pickle.load(file)
                 file.close()
                 return weights, paragraph_list
-        else:
-            if sentences is None:
-                sentences = self.loadSentences()
 
-            # 句子段落编号
-            paragraph_list = []
+        #不存在或者不用缓存，重新算吧
 
-            words_list = []
-            for sentence in sentences:
-                seg_list = jieba.lcut(sentence.str, cut_all=False)
-                # 去停用词
-                seg_list = [word for word in seg_list if word not in self.stopWords]
-                words_list.append(" ".join(seg_list))
-                paragraph_list.append(sentence.paragraph)
+        if sentences is None:
+            sentences = self.loadSentences()
 
-            # 开始转换为tf_idf矩阵
-            vectorizer = CountVectorizer()
-            transformer = TfidfTransformer()
-            print("开始计算tf—idf...")
-            start = time.time()
-            tf_idf_matrix = transformer.fit_transform(vectorizer.fit_transform(words_list))
-            end = time.time()
-            print("耗时：{}s".format(end - start))
+        # 句子段落编号
+        paragraph_list = []
 
-            words = vectorizer.get_feature_names()
-            tf_idf_matrix = tf_idf_matrix.toarray()
+        words_list = []
+        for sentence in sentences:
+            seg_list = jieba.lcut(sentence.str, cut_all=False)
+            # 去停用词
+            seg_list = [word for word in seg_list if word not in self.stopWords]
+            words_list.append(" ".join(seg_list))
+            paragraph_list.append(sentence.paragraph)
 
-            print(len(words))
-            # print(tf_idf_matrix.shape)
-            # for i in tf_idf_matrix[0]:
-            #     if i!= 0:
-            #         print(i)
-            #
-            # ##########################################
-            # #test，自己写的tf_idf
-            # transformer = Tf_idfTransformer()
-            # # 统计词频
-            # tf_matrix, words = transformer.wordsToMatrix(words_list)
-            # print("得到词频，开始计算tf—idf...")
-            # start = time.time()
-            # tf_idf_matrix = transformer.cal_tf_idf(tf_matrix, words, words_list)
-            # end = time.time()
-            # print("耗时：{}s".format(end-start))
-            #
-            # print(tf_idf_matrix.shape)
+        # 开始转换为tf_idf矩阵
+        vectorizer = CountVectorizer()
+        transformer = TfidfTransformer()
+        print("开始计算tf—idf...")
+        start = time.time()
+        tf_idf_matrix = transformer.fit_transform(vectorizer.fit_transform(words_list))
+        end = time.time()
+        print("耗时：{}s".format(end - start))
 
-            print(words_list[0])
+        words = vectorizer.get_feature_names()
+        tf_idf_matrix = tf_idf_matrix.toarray()
 
-            for i in range(len(tf_idf_matrix[0])):
-                if tf_idf_matrix[0][i] != 0:
-                    print(words[i], tf_idf_matrix[0][i], sep=' ')
+        print(len(words))
+        # print(tf_idf_matrix.shape)
+        # for i in tf_idf_matrix[0]:
+        #     if i!= 0:
+        #         print(i)
+        #
+        # ##########################################
+        # #test，自己写的tf_idf
+        # transformer = Tf_idfTransformer()
+        # # 统计词频
+        # tf_matrix, words = transformer.wordsToMatrix(words_list)
+        # print("得到词频，开始计算tf—idf...")
+        # start = time.time()
+        # tf_idf_matrix = transformer.cal_tf_idf(tf_matrix, words, words_list)
+        # end = time.time()
+        # print("耗时：{}s".format(end-start))
+        #
+        # print(tf_idf_matrix.shape)
 
-            print('开始PCA降维。。。。')
-            start = time.time()
-            pca = PCA(n_components=2000)
-            weights = pca.fit_transform(tf_idf_matrix)
-            print(sum(pca.explained_variance_ratio_))
-            end = time.time()
-            print('结束，耗时{}s'.format(end - start))
+        print(words_list[0])
 
-            print(weights.shape)
-            # for i in weights[0]:
-            #     if i != 0:
-            #         print(i)
+        for i in range(len(tf_idf_matrix[0])):
+            if tf_idf_matrix[0][i] != 0:
+                print(words[i], tf_idf_matrix[0][i], sep=' ')
+
+        print('开始PCA降维。。。。')
+        start = time.time()
+        pca = PCA(n_components=2000)
+        weights = pca.fit_transform(tf_idf_matrix)
+        print(sum(pca.explained_variance_ratio_))
+        end = time.time()
+        print('结束，耗时{}s'.format(end - start))
+
+        print(weights.shape)
+        # for i in weights[0]:
+        #     if i != 0:
+        #         print(i)
+        # 如果使用缓存，缓存一下
+        if(useCache):
             file = open(cachePath, 'wb')
             pickle.dump((weights, paragraph_list), file)
             file.close()
-            return weights, paragraph_list
+        return weights, paragraph_list
 
     def cutWords(self):
         """
@@ -303,15 +320,15 @@ class PageRank(object):
 
         if result == 0:
             result = epsilon
-        return (2*np.pi)/result
+        return 1./result
 
 
-    def page_rank(self, tfidf_weights, paragraph_list, num=10, epsilon=1e-5, max_step=1e2, d=0.85):
+    def page_rank(self, tfidf_weights, paragraph_list, topK=10, epsilon=1e-5, max_step=1e2, d=0.85):
         """
         对所有的句子进行page_rank排序，返回PR值为前 num 个句子的索引值
         :param tfidf_weights: 所有句子的tf-idf特征向量
         :param paragraph_list: 每个句子所属的段落
-        :param num: 前几个句子
+        :param topK: 前几个句子
         :param epsilon: PR值迭代的收敛误差
         :param max_step: PR算法迭代的最大步数
         :param d: PR参数
@@ -337,6 +354,14 @@ class PageRank(object):
             for j in range(sen_nums):
                 if j < i and paragraph_list[j] == paragraph_list[i]:
                     graph[i][j] = self.getNearness(tfidf_weights[i], tfidf_weights[j])
+
+        print("max:", graph.max())
+        print(graph.min())
+
+        graph = preprocessing.normalize(graph)
+
+        print(graph.max())
+        print(graph.min())
 
         step = 0
 
@@ -380,7 +405,7 @@ class PageRank(object):
             pickle.dump(df, file)
             file.close()
 
-            result_idx = df['idx'].head(num).get_values()
+            result_idx = df['idx'].head(topK).get_values()
             return result_idx
 
 
@@ -394,12 +419,14 @@ if __name__ == "__main__":
     pr = PageRank(dataPath=dataPath, sentences_path=sentences_path, stopWords_path=stopWords_path)
     sentences = pr.pageToSentences(useCache=True)
     weights, paragraph_list = pr.sentencesToVector(sentences=sentences, useCache=True)
-    idxs = pr.page_rank(weights, paragraph_list, num=20)
+    idxs = pr.page_rank(weights, paragraph_list, topK=20)
     # file = open('../data/result.pkl', 'rb')
     # df = pickle.load(file)
     # result_idx = df['idx'].head(10).get_values()
+    count = 1
     for idx in idxs:
-        print(sentences[idx].str)
+        print(count, "、",sentences[idx].str)
+        count+=1
 
     # pr.cutWords()
     # pr.analyze_sentences()
